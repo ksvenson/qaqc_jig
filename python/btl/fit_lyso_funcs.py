@@ -123,7 +123,7 @@ SPECTRUM_597 = spectrum(ES,597)
 
 @lru_cache(maxsize=None)
 def p_e_fast(p):
-    return p[0]*SPECTRUM_88 + p[1]*SPECTRUM_202 + p[2]*SPECTRUM_290 + p[3]*SPECTRUM_307 + p[4]*SPECTRUM_395 + p[5]*SPECTRUM_509 + p[6]*SPECTRUM_597
+    return p[0]*SPECTRUM_88 + p[1]*SPECTRUM_202 + p[2]*SPECTRUM_290 + p[3]*SPECTRUM_307 + p[4]*SPECTRUM_395 + p[5]*SPECTRUM_509 + (1-sum(p))*SPECTRUM_597
 
 @memoize
 def p_e(es, p):
@@ -135,7 +135,7 @@ def p_e(es, p):
     spectrum_509 = fast_norm(es,509,10)
     spectrum_597 = spectrum(es,597)
 
-    total_spectrum = p[0]*spectrum_88 + p[1]*spectrum_202 + p[2]*spectrum_290 + p[3]*spectrum_307 + p[4]*spectrum_395 + p[5]*spectrum_509 + p[6]*spectrum_597
+    total_spectrum = p[0]*spectrum_88 + p[1]*spectrum_202 + p[2]*spectrum_290 + p[3]*spectrum_307 + p[4]*spectrum_395 + p[5]*spectrum_509 + (1-sum(p))*spectrum_597
 
     return total_spectrum
 
@@ -214,16 +214,17 @@ class lyso_spectrum(object):
 
         p[0] - Average Light yield (pC/keV)
         p[1] - Fractional difference between light yield at center and side
-        p[2] - Constant for 88 keV spectrum
-        p[3] - Constant for 202 keV gamma
-        p[4] - Constant for 290 keV spectrum
-        p[5] - Constant for 307 keV gamma
-        p[6] - Constant for 395 keV spectrum
-        p[7] - Constant for 509 keV gamma
-        p[8] - Constant for 597 keV spectrum
+        p[2] - Overall scale
+        p[3] - Constant for 88 keV spectrum
+        p[4] - Constant for 202 keV gamma
+        p[5] - Constant for 290 keV spectrum
+        p[6] - Constant for 307 keV gamma
+        p[7] - Constant for 395 keV spectrum
+        p[8] - Constant for 509 keV gamma
+        (1-sum(p[3:9])) - Constant for 597 keV spectrum
         """
-        ps = tuple([p[i] for i in range(2,9)])
-        return likelihood_fast(x[0],p[0],p[1],ps,self.spe_charge)
+        ps = tuple([p[i] for i in range(3,9)])
+        return p[2]*likelihood_fast(x[0],p[0],p[1],ps,self.spe_charge)
 
 def get_lyso(x, p, spe_charge=SPE_CHARGE):
     model = lyso_spectrum(spe_charge)
@@ -275,7 +276,7 @@ def fit_lyso(h, model, fix_pars=True):
     for i in range(1,h.GetNbinsX()-1)[::-1]:
         # We look for the peak by looping over the bins from the *right* to the
         # *left* and then looking for a peak and then for the distribution to
-        # go below 90% of this peak (I just picked the 90% number as a guess
+        # go below 80% of this peak (I just picked the 80% number as a guess
         # and it seems to work well, but this could be tweaked). The reason for
         # this is that channels 7, 8, 23, and 24 are in the middle of the
         # module and next to a bar which is not powered, so we can't properly
@@ -301,7 +302,7 @@ def fit_lyso(h, model, fix_pars=True):
         if value < ymax*0.8:
             n += 1
 
-            if n >= 4:
+            if n >= 5:
                 break
         else:
             n = 0
@@ -322,29 +323,29 @@ def fit_lyso(h, model, fix_pars=True):
 
     f.SetParameter(0,pc_per_kev)
     f.SetParLimits(0,0.1,10)
+    
     f.SetParameter(1,0.1)
     f.SetParLimits(1,0.01,0.2)
-    f.SetParameter(2,0.25*h.GetEntries()/dx)
+    
+    f.SetParameter(2,h.GetEntries()/dx)
     f.SetParLimits(2,0,1e9)
-    f.SetParameter(3,0)
-    f.SetParLimits(3,0,1e9)
-    f.SetParameter(4,0.25*h.GetEntries()/dx)
-    f.SetParLimits(4,0,1e9)
-    f.SetParameter(5,0)
-    f.SetParLimits(5,0,1e9)
-    f.SetParameter(6,0.25*h.GetEntries()/dx)
-    f.SetParLimits(6,0,1e9)
-    f.SetParameter(7,0)
-    f.SetParLimits(7,0,1e9)
-    f.SetParameter(8,0.25*h.GetEntries()/dx)
-    f.SetParLimits(8,0,1e9)
+    
+    f.SetParameter(3,0.3)
+    f.SetParameter(4,0)
+    f.SetParameter(5,0.3)
+    f.SetParameter(6,0)
+    f.SetParameter(7,0.3)
+    f.SetParameter(8,0)
+    for i in range(3,9):
+        f.SetParLimits(i, 0, 1)
 
     # Right now we don't fit for the single gammas since they should mostly be
     # cut out since we only include events where the given channel has more
     # charge than it's neighbors and it makes the fit more complicated.
     if fix_pars:
-        f.FixParameter(3,0)
-        f.FixParameter(5,0)
+        f.FixParameter(4,0)
+        f.FixParameter(6,0)
+        f.FixParameter(8,0)
 
     # Run the first fit only floating the normalization constants
     f.FixParameter(0,xmax/300)
