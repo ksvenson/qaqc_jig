@@ -112,15 +112,13 @@ def analytic_spectrum(T, offset):
     m_e = 511 # electron rest mass, keV
     E = T + m_e # total beta particle energy
     p = (1/constants.c)*np.sqrt(E**2 + m_e**2) # momentum of beta particle
-    Q = 593 # Endpoint (total energy released)
+    Q = 593 # Endpoint (total energy released, keV)
     
     if Q <= T:
         # Q is upper bound for T
         return 0
     # TODO: Finish this function. Although, it may not be needed.
     return 0
-
-
 
 @memoize
 def spectrum(es, offset):
