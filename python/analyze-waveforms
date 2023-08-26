@@ -503,7 +503,7 @@ if __name__ == '__main__':
                     if group == source:
                         a, b = get_window(x,y, left=50, right=350)
                         # y -= 0.75
-                        y -= np.median(y[:, (x>=x[a]-100) & (x<x[a])],axis=-1)[:,np.newaxis]
+                        y -= np.median(y[:, (x>=x[a]-100) & (x<x[a]-50)],axis=-1)[:,np.newaxis]
                         if channel not in test_pulses:
                             test_pulses[channel] = {'x': x.copy(), 'y': y.copy(), 'a': a, 'b': b}
                         else:
@@ -529,7 +529,7 @@ if __name__ == '__main__':
 
                     charge.extend(integrate(x,y, a, b))
                     if group == source:
-                        offset_charge.extend(integrate(x, y, a-100, a))
+                        offset_charge.extend(integrate(x, y, int(a-(100/(x[1]-x[0]))), a))
 
                 ch_data[channel]['%s_charge' % group] = np.array(charge)
                 if group == source:
@@ -593,9 +593,9 @@ if __name__ == '__main__':
                     if f'ch{neighbor}' in ch_data:
                         no_neighbor_events = no_neighbor_events & np.array(ch_data[f'ch{neighbor}'][f'{source}_charge'] < cut)
                 offset_selection = no_events & no_neighbor_events
-                hoffset = make_hist(ch_data[channel][f'{source}_charge'][offset_selection], f'{source}_{channel}_pedestal', f'Pedestal {source.capitalize()} Charge Integral for {channel}', xlabel='Charge (pC)')
+                hoffset = make_hist(ch_data[channel][f'{source}_charge'][offset_selection], f'{source}_{channel}_pedestal', f'{source.capitalize()} Pedestal in {channel}', xlabel='Charge (pC)')
                 
-                make_hist(ch_data[channel][f'{source}_offset_charge'], f'{source}_{channel}_pedestal_outside_pulse', f'Pedesdal {source.capitalize()} Integrating Outside of Pulse Window', xlabel='Charge (pC)')
+                make_hist(ch_data[channel][f'{source}_offset_charge'], f'{source}_{channel}_pedestal_outside_pulse', f'{source.capitalize()} Pedestal in {channel}, Integrating Outside of Pulse Window', xlabel='Charge (pC)')
                 pulses = test_pulses[channel]
                 x = pulses['x']
                 y = pulses['y']
@@ -606,9 +606,13 @@ if __name__ == '__main__':
                 test_offset_selection = offset_selection[:len(y)]
                 test_trigger_charge = trigger_charge[ch//8][:len(y)]
                 test_trigger_ch = trigger_ch[ch//8][:len(y)]
-                focus_ch = 0
+                focus_ch = 4
                 if ch == focus_ch:
                     plot_time_volt(x, y[test_events_selection], channel, f'{source} Events', a, b)
+                    mask = test_offset_selection & (test < -1)
+                    plot_time_volt(x, y[mask], '', f'{channel} Pedestal < -1 pC', a, b)
+                    mask = test_offset_selection & (test > 0)
+                    plot_time_volt(x, y[mask], '', f'{channel} Pedestal > 0 pC', a, b)
                     for i in range(8):
                         if i == focus_ch:
                             continue
@@ -620,21 +624,18 @@ if __name__ == '__main__':
                         trig_y = trig_pulses['y']
                         trig_a = trig_pulses['a']
                         trig_b = trig_pulses['b']
-                        mask = np.full(len(y), True)
-                        # for j in range(8):
-                        #     if j == i:
-                        #         continue
-                        #     mask = mask & (ch_data[f'ch{j}'][f'{source}_charge'] < cut)
-                        # plot_time_volt(x, y[mask], '', f'Triggering on ch{i}, viewing {channel}', a, b)
+                        mask = test_offset_selection & (test_trigger_ch == i) & (test < -1)
+                        if len(y[mask]) > 0:
+                            plot_time_volt(x, y[mask], '', f'Triggering on ch{i}, Viewing {channel} < -1 pC', a, b)
+                            # plot_time_volt(trig_x, trig_y[mask], '', f'Triggering on ch{i}, viewing ch{i} when {channel} <-1', trig_a, trig_b)
                         
-                        mask = mask & (test_trigger_ch == i)
+                        mask = test_offset_selection & (test_trigger_ch == i) & (test > 0)
+                        
                         if len(y[mask]) > 0:
-                            plot_time_volt(x, y[mask], channel, f'Triggering on ch{i}, viewing <-1 ', a, b)
-                            plot_time_volt(trig_x, trig_y[mask], '', f'Triggering on ch{i}, viewing ch{i} when {channel} <-1', trig_a, trig_b)
-                        mask = (test_other >= test_trigger_charge) & (test > -1) & (test < 2)
-                        if len(y[mask]) > 0:
-                            plot_time_volt(x, y[mask], channel, f'Triggering on ch{i}, viewing >-1', a, b)
-                            plot_time_volt(trig_x, trig_y[mask], '', f'Triggering on ch{i}, viewing ch{i} when {channel} >-1', trig_a, trig_b)
+                            plot_time_volt(x, y[mask], '', f'Triggering on ch{i}, Viewing {channel} > 0 pC', a, b)
+                            # plot_time_volt(trig_x, trig_y[mask], '', f'Triggering on ch{i}, viewing ch{i} when {channel} >-1', trig_a, trig_b)
+                        
+                        mask = test_offset_selection & (test_trigger_ch == i)
                         make_hist(test[mask], f'test_trig_ch{i}_ct_{channel}', f'Signal in {channel} when Triggering on ch{i}', xlabel='Charge (pC)')
             
             if 'spe_charge' in ch_data[channel]:
